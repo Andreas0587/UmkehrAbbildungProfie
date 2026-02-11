@@ -1,0 +1,200 @@
+program UmkehrAbbildungsProfi;
+
+{$MODE OBJFPC}
+
+uses
+  crt;
+
+type
+  { Array Index 1..3 speichert Character (a,b,c) }
+  TFunktion = array[1..3] of char;
+  { Fuer die Umkehrung: Index 'a'..'c' speichert Integer (1,2,3) }
+  TUmkehrFunktion = array['a'..'c'] of integer;
+
+var
+  F: TFunktion;
+  InvF: TUmkehrFunktion;
+  Auswahl: char;
+
+{ --- GRAFIK-ROUTINE --- }
+{ Zeichnet Mengen und Pfeile. 
+  IstVorwaerts=TRUE:  Zeichnet M -> N (1,2,3 -> a,b,c)
+  IstVorwaerts=FALSE: Zeichnet N -> M (a,b,c -> 1,2,3) }
+procedure ZeichneDiagramm(Titel: string; IstVorwaerts: boolean; MapF: TFunktion; MapInv: TUmkehrFunktion);
+var
+  i: integer;
+  c: char;
+  StartY, ZielY: integer;
+  StartLabel, ZielLabel: string;
+begin
+  Writeln('--------------------------------------------------');
+  TextColor(Cyan); Writeln(Titel); TextColor(LightGray);
+  
+  { Kopfzeile }
+  if IstVorwaerts then
+  begin
+    GoToXY(5, WhereY); Write('M (Start)');
+    GoToXY(35, WhereY); Writeln('N (Ziel)');
+  end
+  else
+  begin
+    GoToXY(5, WhereY); Write('N (Start)');
+    GoToXY(35, WhereY); Writeln('M (Ziel)');
+  end;
+
+  { Diagramm zeichnen }
+  for i := 1 to 3 do
+  begin
+    StartY := WhereY + 1;
+    
+    { Linke Seite }
+    GoToXY(7, StartY);
+    if IstVorwaerts then Write(i) 
+    else Write(chr(ord('a') + i - 1)); { a, b, c }
+
+    { Pfeil }
+    GoToXY(10, StartY); Write('------------------> ');
+
+    { Ziel bestimmen }
+    if IstVorwaerts then
+    begin
+       { Vorwaerts: Wir schauen in F[i] }
+       case MapF[i] of
+         'a': ZielY := StartY - (i-1) + 0; { relative Position zu a }
+         'b': ZielY := StartY - (i-1) + 1;
+         'c': ZielY := StartY - (i-1) + 2;
+       end;
+       ZielLabel := MapF[i];
+    end
+    else
+    begin
+       { Rueckwaerts: Wir schauen in InvF[char] }
+       c := chr(ord('a') + i - 1);
+       { Wenn kein Rueckweg existiert (0), ignorieren wir es hier }
+       ZielY := StartY - (i-1) + (MapInv[c] - 1);
+       str(MapInv[c], ZielLabel);
+    end;
+
+    { Rechte Seite zeichnen (nur Labels einmalig beim ersten Durchlauf der Loop strukturieren wir hier einfach) }
+    { Wir zeichnen die statischen Ziele immer an festen Positionen }
+    if IstVorwaerts then
+    begin
+       GoToXY(37, StartY); Write(chr(ord('a') + i - 1));
+    end
+    else
+    begin
+       GoToXY(37, StartY); Write(i);
+    end;
+
+    { Den Pfeilkopf zeichnen }
+    { Trick: Wir zeichnen den Pfeilkopf direkt neben das berechnete Ziel }
+    { Um die Grafik einfach zu halten, zeigen wir hier nur an, wohin es geht }
+    GoToXY(28, StartY); 
+    if IstVorwaerts then Write(' trifft ', MapF[i])
+    else Write(' trifft ', MapInv[chr(ord('a')+i-1)]);
+
+    Writeln;
+  end;
+  Writeln;
+end;
+
+procedure AnalysiereUndUmkehren;
+var
+  Treffer: array['a'..'c'] of integer;
+  i: integer;
+  c: char;
+  IstBijektiv: boolean;
+begin
+  { 1. Treffer zaehlen }
+  Treffer['a'] := 0; Treffer['b'] := 0; Treffer['c'] := 0;
+  for i := 1 to 3 do Inc(Treffer[F[i]]);
+
+  { 2. Pruefung }
+  IstBijektiv := True;
+  if (Treffer['a'] <> 1) or (Treffer['b'] <> 1) or (Treffer['c'] <> 1) then
+    IstBijektiv := False;
+
+  { 3. Darstellung Original }
+  ZeichneDiagramm('ORIGINALFUNKTION f', True, F, InvF);
+  Writeln;
+
+  { 4. Auswertung }
+  if IstBijektiv then
+  begin
+    TextColor(Green);
+    Writeln('>>> ANALYSE: BIJEKTIV! <<<');
+    TextColor(LightGray);
+    Writeln('Jedes Ziel wird genau einmal getroffen.');
+    Writeln('Wir koennen die Pfeile umdrehen!');
+    Writeln;
+    
+    { Umkehrung berechnen: Wenn f(1)=a, dann InvF(a)=1 }
+    for i := 1 to 3 do
+    begin
+      InvF[F[i]] := i;
+    end;
+
+    ReadLn; { Warten fuer Effekt }
+    
+    { Umkehrung zeichnen }
+    ZeichneDiagramm('UMKEHRFUNKTION f^-1', False, F, InvF);
+  end
+  else
+  begin
+    TextColor(Red);
+    Writeln('>>> ANALYSE: NICHT UMKEHRBAR! <<<');
+    TextColor(LightGray);
+    Writeln('Grund: Die Funktion ist nicht bijektiv.');
+    Writeln;
+    
+    { Detail-Fehlersuche }
+    for c := 'a' to 'c' do
+    begin
+      if Treffer[c] = 0 then
+        Writeln(' - Problem bei "', c, '": Wird nie getroffen (Luecke). Rueckweg unmoeglich.');
+      if Treffer[c] > 1 then
+        Writeln(' - Problem bei "', c, '": Wird mehrfach getroffen. Wohin soll der Rueckweg zeigen?');
+    end;
+  end;
+  ReadLn;
+end;
+
+procedure NeueFunktion;
+var
+  i: integer;
+  Eingabe: char;
+begin
+  ClrScr;
+  Writeln('Definieren Sie f: {1,2,3} -> {a,b,c}');
+  for i := 1 to 3 do
+  begin
+    repeat
+      Write('  f(', i, ') = ');
+      Eingabe := ReadKey;
+      Writeln(Eingabe);
+      Eingabe := LowerCase(Eingabe);
+    until (Eingabe = 'a') or (Eingabe = 'b') or (Eingabe = 'c');
+    F[i] := Eingabe;
+  end;
+  
+  ClrScr;
+  AnalysiereUndUmkehren;
+end;
+
+begin
+  repeat
+    ClrScr;
+    TextColor(White);
+    Writeln('==============================================');
+    Writeln('   LABOR: DIE UMKEHRFUNKTION (INVERSES)       ');
+    Writeln('==============================================');
+    Writeln('1. Funktion eingeben & auf Umkehrbarkeit pruefen');
+    Writeln('2. Beenden');
+    Writeln;
+    Write('Wahl: ');
+    Auswahl := ReadKey;
+
+    if Auswahl = '1' then NeueFunktion;
+    
+  until Auswahl = '2';
+end.
